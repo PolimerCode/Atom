@@ -1,6 +1,17 @@
 #include "SimulationEngine.h"
+#include <random>
 
 namespace atom {
+
+namespace {
+
+Vec3 randomJitterVector() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<double> u(-1.0, 1.0);
+    return Vec3(u(rng), u(rng), u(rng));
+}
+
+}  // namespace
 
 size_t SimulationEngine::addParticle(Particle p) {
     if (p.id == 0 && !particles_.empty()) {
@@ -64,8 +75,10 @@ void SimulationEngine::step(double dt) {
             Vec3 force = coulombForceTowardNucleus(i);
             if (p.mass > 0.0)
                 acceleration = force * (1.0 / p.mass);
+        } else if (p.type == ParticleType::Nucleus) {
+            acceleration = randomJitterVector() * jitterIntensity_;
+            if (p.mass > 0.0) acceleration = acceleration * (1.0 / p.mass);
         }
-        // Nucleus particles: no force from this simple model (can add spring-mass later).
 
         // Verlet: x_new = 2*x - x_old + a*dt^2
         Vec3 newPosition = p.position * 2.0 - p.previous_position + acceleration * dtSq;
@@ -75,6 +88,10 @@ void SimulationEngine::step(double dt) {
     }
 
     applyConstraints();
+}
+
+void SimulationEngine::applyJitter(double intensity) {
+    jitterIntensity_ = intensity;
 }
 
 std::vector<size_t> SimulationEngine::nucleusIndices() const {

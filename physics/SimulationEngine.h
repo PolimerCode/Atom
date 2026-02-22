@@ -43,8 +43,15 @@ public:
      */
     void applyConstraints();
 
+    /**
+     * Apply tiny random force to each nucleus particle (organic jitter).
+     * Called each step; intensity scales the random acceleration.
+     */
+    void applyJitter(double intensity);
+
 private:
     ParticleVec particles_;
+    double jitterIntensity_{0.0};
 
     /** Force on particle at index i from Coulomb interaction with nucleus. */
     Vec3 coulombForceTowardNucleus(size_t i) const;

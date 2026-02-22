@@ -2,6 +2,7 @@
 #include "physics/Particle.h"
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocketServer.h>
+#include <ixwebsocket/IXWebSocketMessage.h>
 #include <sstream>
 #include <thread>
 
@@ -50,8 +51,13 @@ void NetworkServer::start() {
 
     server_ = std::make_unique<ix::WebSocketServer>(port_, "0.0.0.0");
     server_->setOnConnectionCallback(
-        [](std::weak_ptr<ix::WebSocket> /*ws*/, std::shared_ptr<ix::ConnectionState> /*state*/) {
-            // Optional: log new connection
+        [](std::weak_ptr<ix::WebSocket> ws, std::shared_ptr<ix::ConnectionState> /*state*/) {
+            auto client = ws.lock();
+            if (client) {
+                client->setOnMessageCallback([](const ix::WebSocketMessagePtr& /*msg*/) {
+                    // Server only broadcasts; ignore incoming messages
+                });
+            }
         });
 
     serverThread_ = std::thread(&NetworkServer::runServerThread, this);

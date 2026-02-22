@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <iostream>
 #include <mutex>
+#include <random>
 #include <thread>
 
 namespace {
@@ -24,6 +25,15 @@ atom::Vec3 tetrahedronVertex(size_t i) {
     return atom::Vec3(raw[i][0], raw[i][1], raw[i][2]);
 }
 
+/** Random 3D unit vector (uniform on sphere). */
+atom::Vec3 randomUnit3D(std::mt19937& rng) {
+    std::uniform_real_distribution<double> u(-1.0, 1.0);
+    atom::Vec3 v(u(rng), u(rng), u(rng));
+    double len = v.length();
+    if (len < 1e-9) return atom::Vec3(1, 0, 0);
+    return v * (1.0 / len);
+}
+
 }  // namespace
 
 int main() {
@@ -35,6 +45,7 @@ int main() {
     engine.coulombConstant = 1.2;
     engine.minDistance = 2.0;
     engine.constraintIterations = 4;
+    engine.applyJitter(0.008);  // organic nucleus jitter
 
     for (size_t i = 0; i < 4; ++i) {
         atom::Vec3 pos = tetrahedronVertex(i) * scale;
@@ -43,15 +54,28 @@ int main() {
         ));
     }
 
-    const double orbitRadius = 5.0;
     const double dt = 0.008;
     const double electronMass = 0.02;
-    const double tangentialSpeed = 6.5;
-    atom::Particle electron(
-        atom::Vec3(orbitRadius, 0.0, 0.0), electronMass, -1.0, atom::ParticleType::Electron, 5
-    );
-    electron.setVelocity(atom::Vec3(0.0, tangentialSpeed, 0.0), dt);
-    engine.addParticle(std::move(electron));
+    std::mt19937 rng(std::random_device{}());
+
+    // Electron 1: orbit ~r=5, XY plane
+    atom::Particle e1(atom::Vec3(5.0, 0.0, 0.0), electronMass, -1.0, atom::ParticleType::Electron, 5);
+    e1.setVelocity(atom::Vec3(0.0, 6.5, 0.0), dt);
+    engine.addParticle(std::move(e1));
+
+    // Electron 2: r=7, random 3D velocity (different plane)
+    atom::Vec3 pos2(7.0, 0.0, 0.0);
+    atom::Vec3 vel2 = randomUnit3D(rng) * 5.0;  // tangential-ish, orbit ~r=7
+    atom::Particle e2(pos2, electronMass, -1.0, atom::ParticleType::Electron, 6);
+    e2.setVelocity(vel2, dt);
+    engine.addParticle(std::move(e2));
+
+    // Electron 3: r=10, random 3D velocity (another plane)
+    atom::Vec3 pos3(10.0, 0.0, 0.0);
+    atom::Vec3 vel3 = randomUnit3D(rng) * 4.0;  // orbit ~r=10
+    atom::Particle e3(pos3, electronMass, -1.0, atom::ParticleType::Electron, 7);
+    e3.setVelocity(vel3, dt);
+    engine.addParticle(std::move(e3));
 
     std::mutex engineMutex;
     atom::NetworkServer server(8080);
