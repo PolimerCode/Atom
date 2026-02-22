@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\plato\OneDrive\Documentos\myfiles\code\projects\Atom\build\CMakeFiles\b32a8fbc5a815cfc097b0b5744a2ceff\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{8C322D3F-610D-37A5-9221-5C770537EF3C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

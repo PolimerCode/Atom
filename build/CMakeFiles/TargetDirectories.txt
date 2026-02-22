@@ -1,0 +1,5 @@
+C:/Users/plato/OneDrive/Documentos/myfiles/code/projects/Atom/build/CMakeFiles/atom_main.dir
+C:/Users/plato/OneDrive/Documentos/myfiles/code/projects/Atom/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/plato/OneDrive/Documentos/myfiles/code/projects/Atom/build/CMakeFiles/ZERO_CHECK.dir
+C:/Users/plato/OneDrive/Documentos/myfiles/code/projects/Atom/build/physics/CMakeFiles/AtomPhysics.dir
+C:/Users/plato/OneDrive/Documentos/myfiles/code/projects/Atom/build/physics/CMakeFiles/ALL_BUILD.dir
