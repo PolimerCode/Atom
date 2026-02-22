@@ -1,11 +1,15 @@
 /**
- * Test: tetrahedron nucleus (4 particles) + 1 electron on orbit.
- * Prints positions for the first 100 steps to verify stability and orbit.
+ * Atomic simulation + WebSocket server.
+ * Simulation runs continuously; server in a separate thread broadcasts particle state at 50 FPS.
  */
+#include "network/NetworkServer.h"
 #include "physics/SimulationEngine.h"
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
+#include <mutex>
+#include <thread>
 
 namespace {
 
@@ -24,15 +28,14 @@ atom::Vec3 tetrahedronVertex(size_t i) {
 
 int main() {
     const double restDist = 1.0;
-    const double scale = restDist / (2.0 * std::sqrt(2.0));  // so edges = restDist
+    const double scale = restDist / (2.0 * std::sqrt(2.0));
 
     atom::SimulationEngine engine;
     engine.restDistance = restDist;
     engine.coulombConstant = 1.2;
-    engine.minDistance = 2.0;  // effective "core" radius so orbit stays stable
+    engine.minDistance = 2.0;
     engine.constraintIterations = 4;
 
-    // Nucleus: 4 particles in tetrahedron
     for (size_t i = 0; i < 4; ++i) {
         atom::Vec3 pos = tetrahedronVertex(i) * scale;
         engine.addParticle(atom::Particle(
@@ -40,33 +43,50 @@ int main() {
         ));
     }
 
-    // Electron: start at orbitRadius, tangential velocity for stable orbit
-    // Approx orbital v: sqrt(coulombConstant * |q_nucleus| / (mass * r)) with tuned mass
     const double orbitRadius = 5.0;
     const double dt = 0.008;
     const double electronMass = 0.02;
-    const double tangentialSpeed = 6.5;  // ~circular orbit: v^2/r = k*Q/(m*r) => v ≈ sqrt(48) ≈ 6.9 at r=5
+    const double tangentialSpeed = 6.5;
     atom::Particle electron(
         atom::Vec3(orbitRadius, 0.0, 0.0), electronMass, -1.0, atom::ParticleType::Electron, 5
     );
     electron.setVelocity(atom::Vec3(0.0, tangentialSpeed, 0.0), dt);
     engine.addParticle(std::move(electron));
 
+    std::mutex engineMutex;
+    atom::NetworkServer server(8080);
+    server.setSimulation(&engine, &engineMutex);
+    server.setBroadcastIntervalMs(20);  // 50 FPS
+    server.start();
+
+    std::cout << "WebSocket server on ws://0.0.0.0:8080 (50 FPS). Simulation running...\n";
     std::printf("step,pid,type,x,y,z\n");
 
     const int logSteps = 100;
-    for (int step = 0; step < logSteps; ++step) {
-        engine.step(dt);
+    const double simSeconds = 30.0;
+    const int totalSteps = static_cast<int>(simSeconds / dt);
+    auto t0 = std::chrono::steady_clock::now();
 
-        for (size_t i = 0; i < engine.particles().size(); ++i) {
-            const auto& p = engine.particles()[i];
-            const char* typeStr = (p.type == atom::ParticleType::Nucleus) ? "nucleus" : "electron";
-            std::printf("%d,%d,%s,%.6f,%.6f,%.6f\n",
-                step + 1, p.id, typeStr,
-                p.position.x, p.position.y, p.position.z);
+    for (int step = 0; step < totalSteps; ++step) {
+        {
+            std::lock_guard<std::mutex> lock(engineMutex);
+            engine.step(dt);
+
+            if (step < logSteps) {
+                for (size_t i = 0; i < engine.particles().size(); ++i) {
+                    const auto& p = engine.particles()[i];
+                    const char* typeStr = (p.type == atom::ParticleType::Nucleus) ? "nucleus" : "electron";
+                    std::printf("%d,%d,%s,%.6f,%.6f,%.6f\n",
+                        step + 1, p.id, typeStr,
+                        p.position.x, p.position.y, p.position.z);
+                }
+            }
         }
+
+        std::this_thread::sleep_until(t0 + std::chrono::duration<double>(dt * (step + 1)));
     }
 
-    std::cout << "Done. First " << logSteps << " steps printed (step,pid,type,x,y,z).\n";
+    server.stop();
+    std::cout << "Done.\n";
     return 0;
 }
