@@ -47,27 +47,43 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    const composer = new THREE.EffectComposer(renderer);
-    composer.setSize(window.innerWidth, window.innerHeight);
-    composer.setPixelRatio(window.devicePixelRatio);
-    composer.addPass(new RenderPass(scene, camera));
-    const bloomPass = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.15
-    );
-    composer.addPass(bloomPass);
+    let composer = null;
+    let bloomPass = null;
+    try {
+      composer = new THREE.EffectComposer(renderer);
+      composer.setSize(window.innerWidth, window.innerHeight);
+      composer.setPixelRatio(window.devicePixelRatio);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.4, 0.15
+      );
+      composer.addPass(bloomPass);
+    } catch (e) {
+      console.error('Bloom setup failed:', e);
+      composer = null;
+    }
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.target.set(0, 0, 0);
 
-    const grid = new THREE.GridHelper(20, 20, 0x333333, 0x222222);
+    const grid = new THREE.GridHelper(20, 20, 0x555555, 0x333333);
     scene.add(grid);
+    
+    // Test sphere at origin to verify rendering
+    const testGeo = new THREE.SphereGeometry(0.2, 16, 16);
+    const testMat = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+    const testSphere = new THREE.Mesh(testGeo, testMat);
+    testSphere.position.set(0, 0, 0);
+    scene.add(testSphere);
+    console.log('Scene initialized with grid and test sphere');
 
     const particles = new Map();
-    const ambientLight = new THREE.AmbientLight(0x202020);
+    let particleCount = 0;
+    const ambientLight = new THREE.AmbientLight(0x404040);
     scene.add(ambientLight);
-    const pointLight = new THREE.PointLight(0xffffff, 0.6, 100);
+    const pointLight = new THREE.PointLight(0xffffff, 1.0, 100);
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
 
@@ -98,6 +114,8 @@
         mesh.userData.targetPos = new THREE.Vector3(0, 0, 0);
         particles.set(id, mesh);
         scene.add(mesh);
+        particleCount++;
+        console.log(`Created particle id=${id} type=${type}, total=${particleCount}`);
       }
       return mesh;
     }
@@ -109,24 +127,33 @@
       ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         connected = true;
+        console.log('WebSocket connected');
         document.getElementById('info').textContent = 'Connected. Receiving particles...';
       };
       ws.onclose = () => {
         connected = false;
+        console.log('WebSocket closed');
         document.getElementById('info').textContent = 'Disconnected. Reconnecting in 2s...';
         setTimeout(connect, 2000);
       };
-      ws.onerror = () => {};
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err);
+      };
       ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
-          if (!Array.isArray(data)) return;
+          if (!Array.isArray(data)) {
+            console.warn('Received non-array data:', data);
+            return;
+          }
           for (const p of data) {
             const { id, t, x, y, z } = p;
             const mesh = getOrCreateParticle(id, t);
             mesh.userData.targetPos.set(x, y, z);
           }
-        } catch (_) {}
+        } catch (e) {
+          console.error('Parse error:', e, ev.data);
+        }
       };
     }
     connect();
@@ -138,7 +165,13 @@
         mesh.position.lerp(mesh.userData.targetPos, LERP_FACTOR);
       }
       controls.update();
-      composer.render();
+      if (composer) {
+        composer.render();
+      } else {
+        renderer.render(scene, camera);
+      }
+      document.getElementById('info').textContent = 
+        `Connected: ${connected ? 'Yes' : 'No'} | Particles: ${particleCount}`;
     }
     animate();
 
@@ -146,9 +179,11 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      composer.setSize(window.innerWidth, window.innerHeight);
-      composer.setPixelRatio(window.devicePixelRatio);
-      bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+      if (composer) {
+        composer.setSize(window.innerWidth, window.innerHeight);
+        composer.setPixelRatio(window.devicePixelRatio);
+        if (bloomPass) bloomPass.resolution.set(window.innerWidth, window.innerHeight);
+      }
     });
   </script>
 </body>
