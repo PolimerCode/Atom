@@ -1,12 +1,14 @@
 package com.atom;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -59,9 +61,7 @@ public class AtomManager {
         BlockState state = packet.isNucleus()
             ? Blocks.SEA_LANTERN.defaultBlockState()
             : Blocks.LIGHT_BLUE_STAINED_GLASS.defaultBlockState();
-        entity.getEntityData().set(Display.BlockDisplay.DATA_BLOCK_STATE, state);
-        entity.setInterpolationDuration(1);
-        entity.setInterpolationDelay(0);
+        setBlockStateViaDataAccessor(entity, state);
         entity.setPos(
             centerPos.getX() + 0.5 + packet.x,
             centerPos.getY() + packet.y,
@@ -69,4 +69,18 @@ public class AtomManager {
         );
         return entity;
     }
+
+    @SuppressWarnings("unchecked")
+    private static void setBlockStateViaDataAccessor(Display.BlockDisplay entity, BlockState state) {
+        try {
+            Field field = Display.BlockDisplay.class.getDeclaredField("DATA_BLOCK_STATE_ID");
+            field.setAccessible(true);
+            EntityDataAccessor<BlockState> accessor =
+                (EntityDataAccessor<BlockState>) field.get(null);
+            entity.getEntityData().set(accessor, state);
+        } catch (Exception ignored) {
+            // Если что-то пошло не так, просто оставим дефолтный блок.
+        }
+    }
 }
+

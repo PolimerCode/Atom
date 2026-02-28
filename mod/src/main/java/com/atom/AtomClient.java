@@ -57,3 +57,4 @@ public class AtomClient extends WebSocketClient {
         LOGGER.warn("[Atom] WebSocket error: {}", ex.getMessage());
     }
 }
+

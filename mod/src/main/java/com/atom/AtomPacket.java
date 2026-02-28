@@ -21,3 +21,4 @@ public class AtomPacket {
         return "e".equals(type);
     }
 }
+

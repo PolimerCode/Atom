@@ -33,7 +33,10 @@ dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 	mappings loom.officialMojangMappings()
 	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-	implementation files('libs/Java-WebSocket-1.9.5.jar')
+
+	// WebSocket-библиотека доступна и в main, и в client source set
+	implementation files('libs/Java-WebSocket-1.6.0.jar')
+	clientImplementation files('libs/Java-WebSocket-1.6.0.jar')
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"

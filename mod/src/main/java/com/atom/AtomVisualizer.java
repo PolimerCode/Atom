@@ -1,5 +1,6 @@
 package com.atom;
 
+import com.mojang.brigadier.arguments.StringArgumentType;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.minecraft.client.Minecraft;
@@ -25,9 +26,9 @@ public class AtomVisualizer implements ClientModInitializer {
             dispatcher.register(
                 literal("atom")
                     .then(literal("connect")
-                        .then(argument("ip", net.minecraft.commands.arguments.StringArgumentType.string())
+                        .then(argument("ip", StringArgumentType.string())
                             .executes(context -> {
-                                String ip = net.minecraft.commands.arguments.StringArgumentType.getString(context, "ip");
+                                String ip = StringArgumentType.getString(context, "ip");
                                 runConnect(ip.trim());
                                 return 0;
                             }))
@@ -71,3 +72,4 @@ public class AtomVisualizer implements ClientModInitializer {
         }
     }
 }
+
