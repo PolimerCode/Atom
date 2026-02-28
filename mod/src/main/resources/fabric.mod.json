@@ -19,7 +19,7 @@
 			"com.atom.Atom"
 		],
 		"client": [
-			"com.atom.AtomClient"
+			"com.atom.AtomVisualizer"
 		]
 	},
 	"mixins": [
