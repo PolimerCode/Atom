@@ -2,7 +2,6 @@ package com.atom;
 
 import com.mojang.math.Transformation;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Display;
@@ -52,8 +51,8 @@ public class AtomManager {
 
         long now = world.getGameTime();
 
-        // Авто-очистка: удаляем точки, которые не обновлялись > 5 секунд (100 тиков)
-        long lifeTicks = 100;
+        // Авто-очистка: удаляем точки, которые не обновлялись ~2 секунды (40 тиков)
+        long lifeTicks = 40;
         if (!ENTITIES.isEmpty()) {
             var it = ENTITIES.entrySet().iterator();
             while (it.hasNext()) {
@@ -91,10 +90,7 @@ public class AtomManager {
 
             LAST_SEEN_TICK.put(packet.id, now);
 
-            // Лёгкая подсветка орбиты
-            if (world.getGameTime() % 4 == packet.id % 4) {
-                world.sendParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
-            }
+            // (Опциональная подсветка частицами была убрана, чтобы не забивать экран белыми трейсами)
         }
     }
 
@@ -117,7 +113,7 @@ public class AtomManager {
         setBillboardCenter(entity);
         setFullBright(entity);
 
-        // Цвет по типу и радиусу (heatmap)
+        // Цвет по радиусу (heatmap)
         BlockState state = colorFor(packet);
         setBlockStateViaDataAccessor(entity, state);
 
@@ -129,9 +125,7 @@ public class AtomManager {
     }
 
     private static BlockState colorFor(AtomPacket packet) {
-        if (packet.isNucleus()) {
-            return Blocks.SEA_LANTERN.defaultBlockState();
-        }
+        // Цвет только по расстоянию от центра, независимо от типа частицы
         double sx = packet.x * scale;
         double sy = packet.y * scale;
         double sz = packet.z * scale;
