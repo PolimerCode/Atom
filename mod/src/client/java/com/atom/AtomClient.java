@@ -28,13 +28,14 @@ public class AtomClient extends WebSocketClient {
     @Override
     public void onOpen(ServerHandshake handshakedata) {
         LOGGER.info("[Atom] WebSocket connected to {}", getURI());
+        sendChat("§a[Atom] Подключено к " + getURI());
     }
 
     @Override
     public void onMessage(String message) {
         try {
             List<AtomPacket> packets = GSON.fromJson(message, PACKET_LIST_TYPE);
-            if (packets != null) {
+            if (packets != null && !packets.isEmpty()) {
                 Minecraft.getInstance().execute(() -> {
                     for (AtomPacket packet : packets) {
                         AtomManager.update(packet);
@@ -49,12 +50,22 @@ public class AtomClient extends WebSocketClient {
     @Override
     public void onClose(int code, String reason, boolean remote) {
         LOGGER.info("[Atom] WebSocket closed: {} {}", code, reason);
-        AtomManager.clear();
+        sendChat("§c[Atom] Отключено: " + code + " " + reason);
+        Minecraft.getInstance().execute(AtomManager::clear);
     }
 
     @Override
     public void onError(Exception ex) {
         LOGGER.warn("[Atom] WebSocket error: {}", ex.getMessage());
+        sendChat("§c[Atom] Ошибка: " + ex.getMessage());
+    }
+
+    private void sendChat(String text) {
+        Minecraft.getInstance().execute(() -> {
+            var player = Minecraft.getInstance().player;
+            if (player != null) {
+                player.sendSystemMessage(net.minecraft.network.chat.Component.literal(text));
+            }
+        });
     }
 }
-

@@ -83,15 +83,14 @@ int main() {
     server.setBroadcastIntervalMs(20);  // 50 FPS
     server.start();
 
-    std::cout << "WebSocket server on ws://0.0.0.0:8080 (50 FPS). Simulation running...\n";
+    std::cout << "WebSocket server on ws://0.0.0.0:8080 (50 FPS). Simulation running (Ctrl+C to stop).\n";
     std::printf("step,pid,type,x,y,z\n");
 
     const int logSteps = 100;
-    const double simSeconds = 30.0;
-    const int totalSteps = static_cast<int>(simSeconds / dt);
     auto t0 = std::chrono::steady_clock::now();
+    int step = 0;
 
-    for (int step = 0; step < totalSteps; ++step) {
+    for (;;) {
         {
             std::lock_guard<std::mutex> lock(engineMutex);
             engine.step(dt);
@@ -107,10 +106,10 @@ int main() {
             }
         }
 
-        std::this_thread::sleep_until(t0 + std::chrono::duration<double>(dt * (step + 1)));
+        ++step;
+        std::this_thread::sleep_until(t0 + std::chrono::duration<double>(dt * step));
     }
 
     server.stop();
-    std::cout << "Done.\n";
     return 0;
 }
