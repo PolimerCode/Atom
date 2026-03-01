@@ -64,6 +64,7 @@ public class AtomVisualizer implements ClientModInitializer {
             currentClient = new AtomClient(uri);
             currentClient.connect();
             mc.player.sendSystemMessage(Component.literal("§a[Atom] Подключение к " + host + " ..."));
+            mc.player.sendSystemMessage(Component.literal("§7[Atom] Центр атома: блок §f" + centerPos.getX() + " " + centerPos.getY() + " " + centerPos.getZ() + " §7(под вами). Ядро — здесь, электроны — в радиусе ~10 блоков."));
         } catch (Exception e) {
             if (mc.player != null) {
                 mc.player.sendSystemMessage(Component.literal("§c[Atom] Ошибка: " + e.getMessage()));
