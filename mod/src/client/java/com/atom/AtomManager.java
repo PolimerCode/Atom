@@ -5,6 +5,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Display;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -16,9 +17,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Серверный менеджер визуализации: BlockDisplay с масштабом и цветом по радиусу.
+ * Серверный менеджер визуализации: BlockDisplay как светящаяся пыль с glow color по радиусу.
  */
 public class AtomManager {
+    private static final float PARTICLE_SIZE = 0.02f;
+    private static final float CENTER_OFFSET = -0.01f; // половина PARTICLE_SIZE для центрирования
+
     private static final Map<Integer, Display.BlockDisplay> ENTITIES = new HashMap<>();
     private static final Map<Integer, Long> LAST_SEEN_TICK = new HashMap<>();
 
@@ -84,13 +88,12 @@ public class AtomManager {
             double z = centerPos.getZ() + 0.5 + packet.z * scale;
             entity.setPos(x, y, z);
 
-            // Обновляем цвет по текущему расстоянию
-            BlockState state = colorFor(packet);
-            setBlockStateViaDataAccessor(entity, state);
+            // Обновляем только glow-цвет по дистанции (блок не меняем — меньше трафика)
+            int glowColor = glowColorFor(packet);
+            setGlowColorOverride(entity, glowColor);
+            setGlowing(entity, true);
 
             LAST_SEEN_TICK.put(packet.id, now);
-
-            // (Опциональная подсветка частицами была убрана, чтобы не забивать экран белыми трейсами)
         }
     }
 
@@ -99,10 +102,9 @@ public class AtomManager {
 
         Display.BlockDisplay entity = new Display.BlockDisplay(EntityType.BLOCK_DISPLAY, world);
 
-        // Масштаб и центрирование отдельного блока
-        float size = packet.isNucleus() ? 0.5f : 0.1f; // электроны ещё мельче
-        Vector3f translation = new Vector3f(-size / 2.0f, -size / 2.0f, -size / 2.0f);
-        Vector3f scaleVec = new Vector3f(size, size, size);
+        // Микро-масштаб 0.02f и центрирование -0.01f
+        Vector3f translation = new Vector3f(CENTER_OFFSET, CENTER_OFFSET, CENTER_OFFSET);
+        Vector3f scaleVec = new Vector3f(PARTICLE_SIZE, PARTICLE_SIZE, PARTICLE_SIZE);
         Transformation transform = new Transformation(
             translation,
             new Quaternionf(0, 0, 0, 1),
@@ -113,9 +115,11 @@ public class AtomManager {
         setBillboardCenter(entity);
         setFullBright(entity);
 
-        // Цвет по радиусу (heatmap)
-        BlockState state = colorFor(packet);
-        setBlockStateViaDataAccessor(entity, state);
+        // Один блок для всех — цвет задаём через glow
+        setBlockStateViaDataAccessor(entity, Blocks.SEA_LANTERN.defaultBlockState());
+        int glowColor = glowColorFor(packet);
+        setGlowColorOverride(entity, glowColor);
+        setGlowing(entity, true);
 
         double x = centerPos.getX() + 0.5 + packet.x * scale;
         double y = centerPos.getY() + packet.y * scale;
@@ -124,20 +128,20 @@ public class AtomManager {
         return entity;
     }
 
-    private static BlockState colorFor(AtomPacket packet) {
-        // Цвет только по расстоянию от центра, независимо от типа частицы
+    /** Цвет свечения по дистанции: белый → жёлтый → розовый → фиолетовый. (ARGB: 0xAARRGGBB) */
+    private static int glowColorFor(AtomPacket packet) {
         double sx = packet.x * scale;
         double sy = packet.y * scale;
         double sz = packet.z * scale;
         double d = Math.sqrt(sx * sx + sy * sy + sz * sz);
         if (d < 2.0) {
-            return Blocks.SEA_LANTERN.defaultBlockState();
+            return 0xFFFFFF; // белый
         } else if (d < 5.0) {
-            return Blocks.YELLOW_STAINED_GLASS.defaultBlockState();
+            return 0xFFFF00; // жёлтый
         } else if (d < 8.0) {
-            return Blocks.MAGENTA_STAINED_GLASS.defaultBlockState();
+            return 0xFF00FF; // розовый/маджента
         } else {
-            return Blocks.PURPLE_STAINED_GLASS.defaultBlockState();
+            return 0x800080; // фиолетовый
         }
     }
 
@@ -178,6 +182,33 @@ public class AtomManager {
             }
         } catch (Exception ignored) {
             // В худшем случае останется обычное освещение мира
+        }
+    }
+
+    private static void setGlowColorOverride(Display.BlockDisplay entity, int colorARGB) {
+        try {
+            var method = Display.class.getDeclaredMethod("setGlowColorOverride", Integer.class);
+            method.setAccessible(true);
+            method.invoke(entity, colorARGB);
+        } catch (NoSuchMethodException e) {
+            try {
+                var method = Display.class.getDeclaredMethod("setGlowColorOverride", int.class);
+                method.setAccessible(true);
+                method.invoke(entity, colorARGB);
+            } catch (Exception ignored) {
+                // Glow color не задался
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /** Включает/выключает контур свечения (Entity shared flag 6). */
+    private static void setGlowing(Display.BlockDisplay entity, boolean glowing) {
+        try {
+            var method = Entity.class.getDeclaredMethod("setSharedFlag", int.class, boolean.class);
+            method.setAccessible(true);
+            method.invoke(entity, 6, glowing); // 6 = FLAG_GLOWING
+        } catch (Exception ignored) {
         }
     }
 
