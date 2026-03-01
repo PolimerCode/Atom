@@ -36,11 +36,15 @@ public class AtomClient extends WebSocketClient {
         try {
             List<AtomPacket> packets = GSON.fromJson(message, PACKET_LIST_TYPE);
             if (packets != null && !packets.isEmpty()) {
-                Minecraft.getInstance().execute(() -> {
-                    for (AtomPacket packet : packets) {
-                        AtomManager.update(packet);
-                    }
-                });
+                Minecraft mc = Minecraft.getInstance();
+                var server = mc.getSingleplayerServer();
+                if (server != null) {
+                    server.execute(() -> {
+                        for (AtomPacket packet : packets) {
+                            AtomManager.update(packet);
+                        }
+                    });
+                }
             }
         } catch (Exception e) {
             LOGGER.warn("[Atom] Failed to parse message: {}", e.getMessage());
@@ -51,7 +55,11 @@ public class AtomClient extends WebSocketClient {
     public void onClose(int code, String reason, boolean remote) {
         LOGGER.info("[Atom] WebSocket closed: {} {}", code, reason);
         sendChat("§c[Atom] Отключено: " + code + " " + reason);
-        Minecraft.getInstance().execute(AtomManager::clear);
+        Minecraft mc = Minecraft.getInstance();
+        var server = mc.getSingleplayerServer();
+        if (server != null) {
+            server.execute(AtomManager::clear);
+        }
     }
 
     @Override
