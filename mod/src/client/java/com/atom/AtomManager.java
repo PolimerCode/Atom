@@ -21,6 +21,7 @@ import java.util.Map;
  */
 public class AtomManager {
     private static final Map<Integer, Display.BlockDisplay> ENTITIES = new HashMap<>();
+    private static final Map<Integer, Long> LAST_SEEN_TICK = new HashMap<>();
 
     private static BlockPos centerPos;
     private static ServerLevel world;
@@ -42,11 +43,33 @@ public class AtomManager {
             }
         }
         ENTITIES.clear();
+        LAST_SEEN_TICK.clear();
         world = null;
     }
 
     public static void update(AtomPacket packet) {
         if (world == null || centerPos == null) return;
+
+        long now = world.getGameTime();
+
+        // Авто-очистка: удаляем точки, которые не обновлялись > 5 секунд (100 тиков)
+        long lifeTicks = 100;
+        if (!ENTITIES.isEmpty()) {
+            var it = ENTITIES.entrySet().iterator();
+            while (it.hasNext()) {
+                var entry = it.next();
+                int id = entry.getKey();
+                long last = LAST_SEEN_TICK.getOrDefault(id, now);
+                if (now - last > lifeTicks) {
+                    Display.BlockDisplay old = entry.getValue();
+                    if (old.isAlive()) {
+                        old.discard();
+                    }
+                    it.remove();
+                    LAST_SEEN_TICK.remove(id);
+                }
+            }
+        }
 
         Display.BlockDisplay entity = ENTITIES.get(packet.id);
         if (entity == null) {
@@ -57,10 +80,16 @@ public class AtomManager {
             }
         }
         if (entity != null && entity.isAlive()) {
-            double x = centerPos.getX() + 0.5 + packet.x;
-            double y = centerPos.getY() + packet.y;
-            double z = centerPos.getZ() + 0.5 + packet.z;
+            double x = centerPos.getX() + 0.5 + packet.x * scale;
+            double y = centerPos.getY() + packet.y * scale;
+            double z = centerPos.getZ() + 0.5 + packet.z * scale;
             entity.setPos(x, y, z);
+
+            // Обновляем цвет по текущему расстоянию
+            BlockState state = colorFor(packet);
+            setBlockStateViaDataAccessor(entity, state);
+
+            LAST_SEEN_TICK.put(packet.id, now);
 
             // Лёгкая подсветка орбиты
             if (world.getGameTime() % 4 == packet.id % 4) {
@@ -89,24 +118,7 @@ public class AtomManager {
         setFullBright(entity);
 
         // Цвет по типу и радиусу (heatmap)
-        BlockState state;
-        if (packet.isNucleus()) {
-            state = Blocks.SEA_LANTERN.defaultBlockState();
-        } else {
-            double sx = packet.x * scale;
-            double sy = packet.y * scale;
-            double sz = packet.z * scale;
-            double d = Math.sqrt(sx * sx + sy * sy + sz * sz);
-            if (d < 2.0) {
-                state = Blocks.SEA_LANTERN.defaultBlockState();
-            } else if (d < 5.0) {
-                state = Blocks.YELLOW_STAINED_GLASS.defaultBlockState();
-            } else if (d < 8.0) {
-                state = Blocks.MAGENTA_STAINED_GLASS.defaultBlockState();
-            } else {
-                state = Blocks.PURPLE_STAINED_GLASS.defaultBlockState();
-            }
-        }
+        BlockState state = colorFor(packet);
         setBlockStateViaDataAccessor(entity, state);
 
         double x = centerPos.getX() + 0.5 + packet.x * scale;
@@ -114,6 +126,25 @@ public class AtomManager {
         double z = centerPos.getZ() + 0.5 + packet.z * scale;
         entity.setPos(x, y, z);
         return entity;
+    }
+
+    private static BlockState colorFor(AtomPacket packet) {
+        if (packet.isNucleus()) {
+            return Blocks.SEA_LANTERN.defaultBlockState();
+        }
+        double sx = packet.x * scale;
+        double sy = packet.y * scale;
+        double sz = packet.z * scale;
+        double d = Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (d < 2.0) {
+            return Blocks.SEA_LANTERN.defaultBlockState();
+        } else if (d < 5.0) {
+            return Blocks.YELLOW_STAINED_GLASS.defaultBlockState();
+        } else if (d < 8.0) {
+            return Blocks.MAGENTA_STAINED_GLASS.defaultBlockState();
+        } else {
+            return Blocks.PURPLE_STAINED_GLASS.defaultBlockState();
+        }
     }
 
     private static void setTransformationViaReflection(Display.BlockDisplay entity, Transformation transformation) {
